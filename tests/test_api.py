@@ -9,8 +9,14 @@ from unittest.mock import patch
 from app.models.schemas import JobStatus, SummaryLanguage
 
 
-def test_root_endpoint(client):
-    response = client.get("/")
+def test_root_redirects_to_dashboard(client):
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code in (302, 307)
+    assert response.headers["location"] == "/dashboard/"
+
+
+def test_health_endpoint(client):
+    response = client.get("/api/health")
     assert response.status_code == 200
     assert "actief" in response.json()["message"]
 
@@ -204,3 +210,20 @@ def test_delete_job_removes_audio_file_if_present(client, tmp_path):
 
     assert response.status_code == 200
     assert not audio_file.exists()
+
+
+def test_dashboard_index_is_served(client):
+    response = client.get("/dashboard/")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+
+
+def test_dashboard_detail_page_is_served(client):
+    response = client.get("/dashboard/detail.html")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+
+
+def test_dashboard_favicon_is_served(client):
+    response = client.get("/dashboard/assets/favicon.svg")
+    assert response.status_code == 200

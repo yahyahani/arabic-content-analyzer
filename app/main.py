@@ -7,6 +7,8 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 
 from app.models.schemas import (
     AnalyzeRequest,
@@ -17,6 +19,11 @@ from app.models.schemas import (
 )
 from app.services import job_store
 from app.services.pipeline import run_pipeline
+
+# Map met de statische dashboard-bestanden (index.html, detail.html, assets/).
+# Bij lokaal draaien is dit ../dashboard relatief aan dit bestand; in Docker
+# wordt dezelfde map gekopieerd naar /app/dashboard (zie Dockerfile).
+DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "dashboard"
 
 
 @asynccontextmanager
@@ -41,8 +48,14 @@ app.add_middleware(
 )
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 def root():
+    """Stuurt door naar het dashboard, zodat localhost:8000/ direct de UI toont."""
+    return RedirectResponse(url="/dashboard/")
+
+
+@app.get("/api/health")
+def health():
     return {"message": "Multilingual Content Analyzer API is actief."}
 
 
@@ -144,3 +157,10 @@ def delete_job(job_id: str):
 
     job_store.delete_job(job_id)
     return {"job_id": job_id, "deleted": True}
+
+
+# Serveert het dashboard (index.html, detail.html, assets/) op /dashboard.
+# Moet na alle API-routes gemount worden zodat het /analyze, /jobs, etc.
+# niet overschaduwt. html=True zorgt dat /dashboard/ automatisch index.html serveert.
+if DASHBOARD_DIR.exists():
+    app.mount("/dashboard", StaticFiles(directory=str(DASHBOARD_DIR), html=True), name="dashboard")
